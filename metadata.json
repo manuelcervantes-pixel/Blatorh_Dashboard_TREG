@@ -1,0 +1,5 @@
+{
+  "name": "Blatorh - Dashboard T-REG",
+  "description": "Un tablero de control inteligente para analizar horas trabajadas, rentabilidad por cliente y carga de trabajo del equipo, potenciado por Gemini AI.",
+  "requestFramePermissions": []
+}
