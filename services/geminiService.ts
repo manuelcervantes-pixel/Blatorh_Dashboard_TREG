@@ -21,7 +21,7 @@ export const analyzeWorkData = async (kpis: KPI, aggregated: AggregatedData): Pr
     throw new Error("API Key is missing");
   }
 
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE.API.KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // Simplify data for the prompt to save tokens and ensure focus
   const summaryData = {

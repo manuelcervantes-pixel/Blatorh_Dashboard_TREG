@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Users, Clock, Briefcase, TrendingUp, Search, 
@@ -22,8 +23,8 @@ const DEFAULT_CONFIG = {
   // CONFIGURACIÓN DEL EQUIPO (TIPOS DE CONSULTOR)
   CONFIG_SHEET_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRp24u9BeIaC2XDhHsn7SjhwotNgQR4wnu_Lp1qf2v-aVqdtdOnKYZWTnjHGBYryMAd3c4hd5qxJpNS/pub?gid=0&single=true&output=csv", 
   
-  // LOGO PREDETERMINADO
-  LOGO_URL: "https://lh3.googleusercontent.com/d/1PYr6M1H_SIAoPrhaxIbZCWyv4_mh6GX1",
+  // LOGO PREDETERMINADO (Enlace directo compatible)
+  LOGO_URL: "https://docs.google.com/uc?export=view&id=1PYr6M1H_SIAoPrhaxIbZCWyv4_mh6GX1",
 
   // PEGA AQUÍ EL LINK DE TU ARCHIVO MAESTRO DE HORAS (CSV PUBLICADO)
   DATA_LOGS_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDmS7idjTxmnN40uBv71nhPuz4VlPdUVtnevdA-FslVb5Tc1-jdTvWiVHzpIkggLY_5sbL_M5j5dN3/pub?gid=0&single=true&output=csv" 
