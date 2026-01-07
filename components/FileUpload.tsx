@@ -140,7 +140,6 @@ export const parseCSVString = (text: string): WorkLog[] => {
     if (!val) return '';
     return val.toLowerCase()
       .replace(/Ã/g, "")
-      .replace(//g, "")
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
       .replace(/[aeiou]/g, "") 
       .replace(/[^a-z0-9]/g, "") 
