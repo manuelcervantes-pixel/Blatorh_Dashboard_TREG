@@ -4,8 +4,8 @@ import {
   Users, Clock, Briefcase, TrendingUp, Search, 
   BarChart2, PieChart, Filter, X, Ticket, Calendar,
   ChevronDown, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown,
-  Upload, Image as ImageIcon, Save, Trash2, UserCheck, Link as LinkIcon, Share2, LogOut, Building2,
-  Settings, UserCog, Award, BatteryLow, EyeOff, Download
+  Upload, ImageIcon, Save, Trash2, UserCheck, LinkIcon, Share2, LogOut, Building2,
+  Settings, UserCog, Award, BatteryLow, EyeOff, Download, FilterX, Sigma
 } from 'lucide-react';
 import { 
   ComposedChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, 
@@ -20,13 +20,8 @@ import { WorkLog, AIAnalysisResult } from './types';
 import { analyzeWorkData } from './services/geminiService';
 
 const DEFAULT_CONFIG = {
-  // CONFIGURACIÓN DEL EQUIPO (TIPOS DE CONSULTOR)
   CONFIG_SHEET_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRp24u9BeIaC2XDhHsn7SjhwotNgQR4wnu_Lp1qf2v-aVqdtdOnKYZWTnjHGBYryMAd3c4hd5qxJpNS/pub?gid=0&single=true&output=csv", 
-  
-  // LOGO PREDETERMINADO (Enlace directo compatible)
   LOGO_URL: "https://i.imgur.com/f5ZQtvI.png",
-
-  // PEGA AQUÍ EL LINK DE TU ARCHIVO MAESTRO DE HORAS (CSV PUBLICADO)
   DATA_LOGS_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTDmS7idjTxmnN40uBv71nhPuz4VlPdUVtnevdA-FslVb5Tc1-jdTvWiVHzpIkggLY_5sbL_M5j5dN3/pub?gid=0&single=true&output=csv" 
 };
 
@@ -109,6 +104,55 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, selected, onC
     </div>
   );
 };
+
+// --- COMPONENTE EXTRAÍDO FUERA DE APP PARA EVITAR PÉRDIDA DE FOCO ---
+interface SortableHeaderProps {
+  label: string;
+  sortKey: keyof WorkLog;
+  width?: string;
+  sortConfig: { key: keyof WorkLog; direction: 'asc' | 'desc' } | null;
+  onSort: (key: keyof WorkLog) => void;
+  filterValue: string;
+  onFilterChange: (key: string, value: string) => void;
+}
+
+const SortableHeader: React.FC<SortableHeaderProps> = ({ 
+  label, sortKey, width, sortConfig, onSort, filterValue, onFilterChange
+}) => (
+  <th className={`px-4 py-3 align-top ${width}`}>
+    <div 
+      className="flex items-center gap-1 cursor-pointer hover:text-indigo-400 mb-2 select-none text-slate-200" 
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="text-xs whitespace-nowrap">{label}</span>
+      <div className="flex flex-col">
+        {sortConfig?.key === sortKey ? (
+          sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-indigo-400" /> : <ArrowDown className="w-3 h-3 text-indigo-400" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-500" />
+        )}
+      </div>
+    </div>
+    <div className="relative">
+      <input 
+        type="text"
+        className="w-full px-2 py-1 text-[11px] border border-slate-600 bg-[#0D2340] text-slate-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-normal outline-none placeholder-slate-600" 
+        placeholder="Filtrar..."
+        value={filterValue || ''} 
+        onChange={(e) => onFilterChange(sortKey, e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+      />
+      {filterValue && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onFilterChange(sortKey, ''); }}
+          className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  </th>
+);
 
 
 const App: React.FC = () => {
@@ -296,12 +340,9 @@ const App: React.FC = () => {
       if (selectedConsultants.length > 0) result = result.filter(d => selectedConsultants.includes(d.consultant));
       if (selectedRecordTypes.length > 0) result = result.filter(d => selectedRecordTypes.includes(d.recordType || 'N/A'));
       
-      // --- LÓGICA INTELIGENTE DE "BAJA" ---
       if (selectedConsultantTypes.length > 0) {
-        // Si el usuario seleccionó tipos específicos, filtramos solo por esos (si incluye "Baja", se verá)
         result = result.filter(d => selectedConsultantTypes.includes(d.consultantType || 'No definido'));
       } else {
-        // Si no hay filtro seleccionado (Estado: "Todos"), OCULTAMOS "Baja" por defecto
         result = result.filter(d => (d.consultantType || '').toLowerCase() !== 'baja');
       }
     }
@@ -317,11 +358,17 @@ const App: React.FC = () => {
     }
 
     Object.keys(columnFilters).forEach(key => {
-      const filterValue = columnFilters[key].toLowerCase();
+      const filterValue = columnFilters[key];
       if (filterValue) {
+        const lowerFilter = filterValue.toLowerCase().trim();
         result = result.filter(item => {
-          const val = item[key as keyof WorkLog];
-          return String(val ?? '').toLowerCase().includes(filterValue);
+          if (key === 'ticketId') {
+            const t1 = String(item.ticketId || '').toLowerCase();
+            const t2 = String(item.internalTicketId || '').toLowerCase();
+            return t1.includes(lowerFilter) || t2.includes(lowerFilter);
+          }
+          const val = String(item[key as keyof WorkLog] || '').toLowerCase();
+          return val.includes(lowerFilter);
         });
       }
     });
@@ -353,6 +400,10 @@ const App: React.FC = () => {
 
   const handleColumnFilterChange = (key: string, value: string) => {
     setColumnFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const clearAllTableFilters = () => {
+    setColumnFilters({});
   };
 
   const handleAlertFilter = (ids: string[]) => {
@@ -530,19 +581,6 @@ const App: React.FC = () => {
 
   const consultantChartHeight = Math.max(400, stats.charts.consultantStacked.length * 50);
 
-  // --- MAIN APP ---
-  const SortableHeader = ({ label, sortKey, width }: { label: string, sortKey: keyof WorkLog, width?: string }) => (
-    <th className={`px-4 py-3 align-top ${width}`}>
-      <div className="flex items-center gap-1 cursor-pointer hover:text-indigo-400 mb-2 select-none text-slate-200" onClick={() => handleSort(sortKey)}>
-        <span>{label}</span>
-        <div className="flex flex-col">
-          {sortConfig?.key === sortKey ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-indigo-400" /> : <ArrowDown className="w-3 h-3 text-indigo-400" />) : (<ArrowUpDown className="w-3 h-3 text-slate-500" />)}
-        </div>
-      </div>
-      <input type="text" placeholder={`Filtrar...`} className="w-full px-2 py-1 text-xs border border-slate-600 bg-[#0D2340] text-white rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-normal placeholder-slate-500" value={columnFilters[sortKey] || ''} onChange={(e) => handleColumnFilterChange(sortKey, e.target.value)} onClick={(e) => e.stopPropagation()} />
-    </th>
-  );
-
   return (
     <div className="min-h-screen pb-12 bg-[#0D2340]">
       <ConfigModal isOpen={isConfigModalOpen} onClose={() => setIsConfigModalOpen(false)} consultants={uniqueConsultantNames} config={consultantConfig} onSaveConfig={saveConsultantConfig} configSheetUrl={configSheetUrl} onSetConfigSheetUrl={loadConfigSheet} isLoading={isConfigLoading} />
@@ -619,7 +657,7 @@ const App: React.FC = () => {
                 )}
                 <div className="relative flex-grow min-w-[200px]">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"><Search className="w-4 h-4 text-slate-400" /></div>
-                  <input type="text" className="bg-[#0D2340] border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5 placeholder-slate-400" placeholder="Buscar global..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <input type="text" className="bg-[#0D2340] border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5 placeholder-slate-400 outline-none" placeholder="Buscar global..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -691,30 +729,97 @@ const App: React.FC = () => {
             <AnalysisPanel analysis={aiAnalysis} loading={aiLoading} onAnalyze={handleAIAnalysis} />
 
             <div className="bg-[#172e4d] rounded-xl border border-slate-700 shadow-sm overflow-hidden" ref={tableRef}>
-              <div className="px-6 py-4 border-b border-slate-700 flex flex-wrap justify-between items-center gap-4">
-                <div className="flex items-center gap-3"><h3 className="text-lg font-bold text-white">Detalle de Registros</h3><span className="text-xs font-medium text-slate-300 bg-slate-700 px-2 py-1 rounded">{filteredData.length} registros encontrados</span></div>
+              <div className="px-6 py-4 border-b border-slate-700 flex flex-wrap justify-between items-center gap-4 bg-[#0f213a]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-lg font-bold text-white">Detalle de Registros</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-slate-300 bg-slate-700 px-2 py-1 rounded">{filteredData.length} registros encontrados</span>
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-blue-100 bg-blue-600/40 px-3 py-1 rounded border border-blue-500/50">
+                      <Sigma className="w-3.5 h-3.5" /> Total Horas: {stats.kpi.totalHours.toFixed(1)} hs
+                    </span>
+                  </div>
+                  {Object.keys(columnFilters).length > 0 && (
+                    <button 
+                      onClick={clearAllTableFilters} 
+                      className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-900/20 px-2 py-1 rounded border border-indigo-800/50"
+                    >
+                      <FilterX className="w-3 h-3" /> Limpiar Filtros
+                    </button>
+                  )}
+                </div>
                 <button onClick={handleExportCSV} disabled={filteredData.length === 0} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors shadow-sm"><Download className="w-3.5 h-3.5" /><span>Exportar Registros</span></button>
               </div>
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-sm text-left text-slate-300">
+                <table className="w-full text-sm text-left text-slate-300 border-collapse">
                   <thead className="text-xs text-slate-200 uppercase bg-[#0f213a] sticky top-0 shadow-sm z-10">
-                    <tr><SortableHeader label="Fecha" sortKey="date" /><SortableHeader label="Consultor" sortKey="consultant" /><SortableHeader label="Tipo Registro" sortKey="recordType" /><SortableHeader label="Cliente" sortKey="client" /><SortableHeader label="Ticket / Ref" sortKey="ticketId" /><SortableHeader label="Tarea" sortKey="project" /><SortableHeader label="Horas" sortKey="hours" width="w-24 text-right" /></tr>
+                    <tr>
+                      <SortableHeader 
+                        label="Fecha" sortKey="date" 
+                        sortConfig={sortConfig} onSort={handleSort} 
+                        filterValue={columnFilters.date} onFilterChange={handleColumnFilterChange} 
+                      />
+                      <SortableHeader 
+                        label="Consultor" sortKey="consultant" 
+                        sortConfig={sortConfig} onSort={handleSort} 
+                        filterValue={columnFilters.consultant} onFilterChange={handleColumnFilterChange} 
+                      />
+                      <SortableHeader 
+                        label="T. Registro" sortKey="recordType" 
+                        sortConfig={sortConfig} onSort={handleSort} 
+                        filterValue={columnFilters.recordType} onFilterChange={handleColumnFilterChange} 
+                      />
+                      <SortableHeader 
+                        label="Cliente" sortKey="client" 
+                        sortConfig={sortConfig} onSort={handleSort} 
+                        filterValue={columnFilters.client} onFilterChange={handleColumnFilterChange} 
+                      />
+                      <SortableHeader 
+                        label="Ticket / Ref" sortKey="ticketId" 
+                        sortConfig={sortConfig} onSort={handleSort} 
+                        filterValue={columnFilters.ticketId} onFilterChange={handleColumnFilterChange} 
+                      />
+                      <SortableHeader 
+                        label="Tarea" sortKey="project" 
+                        sortConfig={sortConfig} onSort={handleSort} 
+                        filterValue={columnFilters.project} onFilterChange={handleColumnFilterChange} 
+                      />
+                      <th className="px-4 py-3 align-top w-24 text-right">
+                        <div className="flex items-center justify-end gap-1 cursor-pointer hover:text-indigo-400 mb-2 select-none text-slate-200" onClick={() => handleSort('hours')}>
+                          <span className="text-xs">Horas</span>
+                          {sortConfig?.key === 'hours' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-indigo-400" /> : <ArrowDown className="w-3 h-3 text-indigo-400" />) : (<ArrowUpDown className="w-3 h-3 text-slate-500" />)}
+                        </div>
+                      </th>
+                    </tr>
                   </thead>
                   <tbody>
                     {filteredData.slice(0, 50).map((row) => (
                       <tr key={row.id} className="bg-[#172e4d] border-b border-slate-700 hover:bg-[#253f66] transition-colors">
                         <td className="px-4 py-3 font-medium text-white whitespace-nowrap align-middle">{row.date}</td>
                         <td className="px-4 py-3 align-middle">{row.consultant}</td>
-                        <td className="px-4 py-3 align-middle"><span className={`text-xs font-medium px-2 py-0.5 rounded border ${row.recordType?.toLowerCase().includes('proyecto') ? 'bg-purple-900/50 text-purple-200 border-purple-800' : row.recordType?.toLowerCase().includes('mantenimiento') ? 'bg-teal-900/50 text-teal-200 border-teal-800' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>{row.recordType || 'N/A'}</span></td>
-                        <td className="px-4 py-3 align-middle"><span className="bg-indigo-900/50 text-indigo-200 text-xs font-medium px-2.5 py-0.5 rounded border border-indigo-800">{row.client}</span></td>
+                        <td className="px-4 py-3 align-middle"><span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${row.recordType?.toLowerCase().includes('proyecto') ? 'bg-purple-900/50 text-purple-200 border-purple-800' : row.recordType?.toLowerCase().includes('mantenimiento') ? 'bg-teal-900/50 text-teal-200 border-teal-800' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>{row.recordType || 'N/A'}</span></td>
+                        <td className="px-4 py-3 align-middle"><span className="bg-indigo-900/50 text-indigo-200 text-[10px] font-medium px-2 py-0.5 rounded border border-indigo-800">{row.client}</span></td>
                         <td className="px-4 py-3 text-slate-400 align-middle"><div className="flex items-center gap-1">{(row.ticketId || row.internalTicketId) && <Ticket className="w-3 h-3 flex-shrink-0" />}<span className="truncate max-w-[120px]" title={row.recordType?.toLowerCase().includes('proyecto') ? (row.internalTicketId || row.ticketId) : (row.ticketId || row.internalTicketId)}>{row.recordType?.toLowerCase().includes('proyecto') ? (row.internalTicketId || row.ticketId || '-') : (row.ticketId || row.internalTicketId || '-')}</span></div></td>
-                        <td className="px-4 py-3 truncate max-w-xs align-middle" title={row.description}><div className="font-medium text-white truncate">{row.project}</div><div className="text-xs text-slate-500 truncate">{row.description}</div></td>
-                        <td className="px-4 py-3 text-right font-bold text-white align-middle">{row.hours}</td>
+                        <td className="px-4 py-3 truncate max-w-xs align-middle" title={row.description}><div className="font-medium text-white truncate text-xs">{row.project}</div><div className="text-[10px] text-slate-500 truncate">{row.description}</div></td>
+                        <td className="px-4 py-3 text-right font-bold text-white align-middle">{row.hours.toFixed(1)}</td>
                       </tr>
                     ))}
-                    {filteredData.length > 50 && (<tr><td colSpan={7} className="px-6 py-4 text-center text-slate-400 italic">Mostrando los primeros 50 de {filteredData.length} registros...</td></tr>)}
                     {filteredData.length === 0 && (<tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400 flex flex-col items-center justify-center"><Search className="w-8 h-8 text-slate-500 mb-2" /><p>No se encontraron registros con los filtros actuales.</p></td></tr>)}
                   </tbody>
+                  {filteredData.length > 0 && (
+                    <tfoot className="bg-[#0f213a] text-slate-200 font-bold border-t-2 border-slate-600">
+                      <tr>
+                        <td colSpan={6} className="px-4 py-4 text-right">
+                          {filteredData.length > 50 ? `Mostrando 50 de ${filteredData.length} registros - Total Filtrado:` : 'Total Filtrado:'}
+                        </td>
+                        <td className="px-4 py-4 text-right text-lg border-l border-slate-700 bg-blue-900/20">
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-slate-400 font-normal uppercase mb-0.5">Sumatoria</span>
+                            <span className="text-blue-400">{stats.kpi.totalHours.toFixed(1)} hs</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
